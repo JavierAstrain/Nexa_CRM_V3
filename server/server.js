@@ -46,14 +46,14 @@ app.post('/api/contacts', (req, res) => {
   const db = loadDb();
   const email = (req.body.email || '').trim();
   if (email && !isValidEmail(email)) return res.status(400).json({ error: 'Email inválido' });
-  if (email && db.contacts.some(c => c.email?.toLowerCase() === email.toLowerCase() && !c.archived)) {
+  if (email && db.contacts.some(c => c.email && c.email.toLowerCase() === email.toLowerCase() && !c.archived)) {
     return res.status(409).json({ error: 'Ya existe un contacto con ese email' });
   }
   const now = new Date().toISOString();
   const contact = {
     id: uuidv4(),
     name: req.body.name || '',
-    email,
+    email: email,
     phone: req.body.phone || '',
     company: req.body.company || '',
     status: req.body.status || 'Prospect',
@@ -72,10 +72,10 @@ app.put('/api/contacts/:id', (req, res) => {
   const db = loadDb();
   const index = db.contacts.findIndex(c => c.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: 'Contact not found' });
-  const incomingEmail = (req.body.email ?? db.contacts[index].email || '').trim();
+  const incomingEmail = (req.body.email !== undefined ? req.body.email : (db.contacts[index].email || '')).trim();
   if (incomingEmail && !isValidEmail(incomingEmail)) return res.status(400).json({ error: 'Email inválido' });
   if (incomingEmail && incomingEmail.toLowerCase() !== (db.contacts[index].email || '').toLowerCase()) {
-    if (db.contacts.some(c => c.id !== db.contacts[index].id && c.email?.toLowerCase() === incomingEmail.toLowerCase() && !c.archived)) {
+    if (db.contacts.some(c => c.id !== db.contacts[index].id && c.email && c.email.toLowerCase() === incomingEmail.toLowerCase() && !c.archived)) {
       return res.status(409).json({ error: 'Ya existe un contacto con ese email' });
     }
   }
@@ -284,7 +284,7 @@ app.post('/api/ai/summarize', async (req, res) => {
       temperature: 0.4,
       max_tokens: 220
     });
-    const summary = completion.choices?.[0]?.message?.content?.trim() || '';
+    const summary = completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content ? completion.choices[0].message.content.trim() : '';
     res.json({ summary });
   } catch (err) {
     res.status(500).json({ error: 'AI summarize failed', details: String(err.message || err) });
@@ -306,7 +306,7 @@ app.post('/api/ai/predict', async (req, res) => {
       temperature: 0.2,
       max_tokens: 10
     });
-    let content = completion.choices?.[0]?.message?.content?.trim() || '0';
+    let content = completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content ? completion.choices[0].message.content.trim() : '0';
     const match = content.match(/\d{1,3}/);
     let probability = match ? Math.min(100, Math.max(0, parseInt(match[0], 10))) : 0;
     res.json({ probability });
@@ -318,11 +318,11 @@ app.post('/api/ai/predict', async (req, res) => {
 app.post('/api/ai/advise', async (req, res) => {
   try {
     const { contact, opportunityDescription } = req.body || {};
-    const name = contact?.name || 'cliente';
-    const notes = String(contact?.notes || '').slice(0, 4000);
+    const name = contact && contact.name ? contact.name : 'cliente';
+    const notes = String(contact && contact.notes ? contact.notes : '').slice(0, 4000);
     const extra = String(opportunityDescription || '').slice(0, 2000);
     const systemPrompt = 'Eres un asesor comercial experto. Analiza el perfil y notas de un cliente y propone próximos pasos accionables (3-7 bullets), riesgos y tono recomendado. Responde en español, conciso.';
-    const userPrompt = `Cliente: ${name}\nEmpresa: ${contact?.company || ''}\nEstado: ${contact?.status || ''}\nNotas:\n${notes}\nContexto adicional:\n${extra}`;
+    const userPrompt = `Cliente: ${name}\nEmpresa: ${contact && contact.company ? contact.company : ''}\nEstado: ${contact && contact.status ? contact.status : ''}\nNotas:\n${notes}\nContexto adicional:\n${extra}`;
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -332,7 +332,7 @@ app.post('/api/ai/advise', async (req, res) => {
       temperature: 0.4,
       max_tokens: 400
     });
-    const advice = completion.choices?.[0]?.message?.content?.trim() || '';
+    const advice = completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content ? completion.choices[0].message.content.trim() : '';
     res.json({ advice });
   } catch (err) {
     res.status(500).json({ error: 'AI advise failed', details: String(err.message || err) });
