@@ -9,10 +9,9 @@ const OpenAI = require('openai');
 dotenv.config();
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-// Permite configurar un directorio de datos (Render: DATA_DIR=/data)
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname;
 if (!fs.existsSync(DATA_DIR)) {
-  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) { /* ignore */ }
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
 }
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 
@@ -21,44 +20,48 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
-
-// Servir frontend
 app.use(express.static(path.join(ROOT_DIR, 'public')));
 
-// --- Helpers JSON DB ---
+// DB helpers
 function loadDb() {
-  try {
-    const data = fs.readFileSync(DB_PATH, 'utf-8');
-    return JSON.parse(data);
-  } catch (err) {
-    return { contacts: [], opportunities: [], tasks: [], interactions: [] };
-  }
+  try { return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8')); }
+  catch { return { contacts: [], opportunities: [], tasks: [], interactions: [] }; }
 }
-function saveDb(db) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
-}
-if (!fs.existsSync(DB_PATH)) {
-  saveDb({ contacts: [], opportunities: [], tasks: [], interactions: [] });
-}
+function saveDb(db) { fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8'); }
+if (!fs.existsSync(DB_PATH)) saveDb({ contacts: [], opportunities: [], tasks: [], interactions: [] });
 
-// --- CRUD: Contacts ---
+// Utils
+function isValidEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim()); }
+function toNumber(n, d = 0) { const v = Number(n); return Number.isFinite(v) ? v : d; }
+
+// Contacts
 app.get('/api/contacts', (req, res) => {
+  const includeArchived = String(req.query.includeArchived || 'false').toLowerCase() === 'true';
   const db = loadDb();
-  res.json(db.contacts);
+  const list = includeArchived ? db.contacts : db.contacts.filter(c => !c.archived);
+  res.json(list);
 });
 
 app.post('/api/contacts', (req, res) => {
   const db = loadDb();
+  const email = (req.body.email || '').trim();
+  if (email && !isValidEmail(email)) return res.status(400).json({ error: 'Email inválido' });
+  if (email && db.contacts.some(c => c.email?.toLowerCase() === email.toLowerCase() && !c.archived)) {
+    return res.status(409).json({ error: 'Ya existe un contacto con ese email' });
+  }
+  const now = new Date().toISOString();
   const contact = {
     id: uuidv4(),
     name: req.body.name || '',
-    email: req.body.email || '',
+    email,
     phone: req.body.phone || '',
     company: req.body.company || '',
     status: req.body.status || 'Prospect',
     notes: req.body.notes || '',
     interactionHistory: req.body.interactionHistory || [],
-    createdAt: new Date().toISOString()
+    createdAt: now,
+    updatedAt: now,
+    archived: false
   };
   db.contacts.push(contact);
   saveDb(db);
@@ -69,39 +72,61 @@ app.put('/api/contacts/:id', (req, res) => {
   const db = loadDb();
   const index = db.contacts.findIndex(c => c.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: 'Contact not found' });
-  db.contacts[index] = { ...db.contacts[index], ...req.body, id: db.contacts[index].id };
+  const incomingEmail = (req.body.email ?? db.contacts[index].email || '').trim();
+  if (incomingEmail && !isValidEmail(incomingEmail)) return res.status(400).json({ error: 'Email inválido' });
+  if (incomingEmail && incomingEmail.toLowerCase() !== (db.contacts[index].email || '').toLowerCase()) {
+    if (db.contacts.some(c => c.id !== db.contacts[index].id && c.email?.toLowerCase() === incomingEmail.toLowerCase() && !c.archived)) {
+      return res.status(409).json({ error: 'Ya existe un contacto con ese email' });
+    }
+  }
+  db.contacts[index] = {
+    ...db.contacts[index],
+    ...req.body,
+    email: incomingEmail,
+    id: db.contacts[index].id,
+    updatedAt: new Date().toISOString()
+  };
   saveDb(db);
   res.json(db.contacts[index]);
 });
 
+// Archive instead of hard delete
 app.delete('/api/contacts/:id', (req, res) => {
   const db = loadDb();
   const index = db.contacts.findIndex(c => c.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: 'Contact not found' });
-  const [removed] = db.contacts.splice(index, 1);
+  db.contacts[index].archived = true;
+  db.contacts[index].archivedAt = new Date().toISOString();
+  db.contacts[index].updatedAt = new Date().toISOString();
   saveDb(db);
-  res.json(removed);
+  res.json(db.contacts[index]);
 });
 
-// --- CRUD: Opportunities ---
+// Opportunities
 const DEFAULT_STAGES = ['Prospecto', 'Calificado', 'Propuesta', 'Negociacion', 'Cerrado/Ganado', 'Cerrado/Perdido'];
 
 app.get('/api/opportunities', (req, res) => {
+  const includeArchived = String(req.query.includeArchived || 'false').toLowerCase() === 'true';
   const db = loadDb();
-  res.json(db.opportunities);
+  const list = includeArchived ? db.opportunities : db.opportunities.filter(o => !o.archived);
+  res.json(list);
 });
 
 app.post('/api/opportunities', (req, res) => {
   const db = loadDb();
+  const now = new Date().toISOString();
   const opportunity = {
     id: uuidv4(),
     contactId: req.body.contactId || null,
     title: req.body.title || '',
-    value: Number(req.body.value || 0),
-    probability: Number(req.body.probability || 0),
+    value: toNumber(req.body.value, 0),
+    probability: toNumber(req.body.probability, 0),
     estimatedCloseDate: req.body.estimatedCloseDate || null,
     description: req.body.description || '',
-    stage: req.body.stage || DEFAULT_STAGES[0]
+    stage: req.body.stage || DEFAULT_STAGES[0],
+    createdAt: now,
+    updatedAt: now,
+    archived: false
   };
   db.opportunities.push(opportunity);
   saveDb(db);
@@ -112,7 +137,14 @@ app.put('/api/opportunities/:id', (req, res) => {
   const db = loadDb();
   const index = db.opportunities.findIndex(o => o.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: 'Opportunity not found' });
-  db.opportunities[index] = { ...db.opportunities[index], ...req.body, id: db.opportunities[index].id };
+  db.opportunities[index] = {
+    ...db.opportunities[index],
+    ...req.body,
+    value: req.body.value !== undefined ? toNumber(req.body.value, db.opportunities[index].value) : db.opportunities[index].value,
+    probability: req.body.probability !== undefined ? toNumber(req.body.probability, db.opportunities[index].probability) : db.opportunities[index].probability,
+    id: db.opportunities[index].id,
+    updatedAt: new Date().toISOString()
+  };
   saveDb(db);
   res.json(db.opportunities[index]);
 });
@@ -121,28 +153,36 @@ app.delete('/api/opportunities/:id', (req, res) => {
   const db = loadDb();
   const index = db.opportunities.findIndex(o => o.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: 'Opportunity not found' });
-  const [removed] = db.opportunities.splice(index, 1);
+  db.opportunities[index].archived = true;
+  db.opportunities[index].archivedAt = new Date().toISOString();
+  db.opportunities[index].updatedAt = new Date().toISOString();
   saveDb(db);
-  res.json(removed);
+  res.json(db.opportunities[index]);
 });
 
-// --- CRUD: Tasks ---
+// Tasks
 app.get('/api/tasks', (req, res) => {
+  const includeArchived = String(req.query.includeArchived || 'false').toLowerCase() === 'true';
   const db = loadDb();
-  res.json(db.tasks);
+  const list = includeArchived ? db.tasks : db.tasks.filter(t => !t.archived);
+  res.json(list);
 });
 
 app.post('/api/tasks', (req, res) => {
   const db = loadDb();
+  const now = new Date().toISOString();
   const task = {
     id: uuidv4(),
     title: req.body.title || '',
     dueDate: req.body.dueDate || null,
     status: req.body.status || 'pending',
     assignedTo: req.body.assignedTo || 'Me',
-    linkedType: req.body.linkedType || null, // 'contact' | 'opportunity' | null
+    linkedType: req.body.linkedType || null, // 'contact'|'opportunity'|null
     linkedId: req.body.linkedId || null,
-    notes: req.body.notes || ''
+    notes: req.body.notes || '',
+    createdAt: now,
+    updatedAt: now,
+    archived: false
   };
   db.tasks.push(task);
   saveDb(db);
@@ -153,7 +193,12 @@ app.put('/api/tasks/:id', (req, res) => {
   const db = loadDb();
   const index = db.tasks.findIndex(t => t.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: 'Task not found' });
-  db.tasks[index] = { ...db.tasks[index], ...req.body, id: db.tasks[index].id };
+  db.tasks[index] = {
+    ...db.tasks[index],
+    ...req.body,
+    id: db.tasks[index].id,
+    updatedAt: new Date().toISOString()
+  };
   saveDb(db);
   res.json(db.tasks[index]);
 });
@@ -162,32 +207,38 @@ app.delete('/api/tasks/:id', (req, res) => {
   const db = loadDb();
   const index = db.tasks.findIndex(t => t.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: 'Task not found' });
-  const [removed] = db.tasks.splice(index, 1);
+  db.tasks[index].archived = true;
+  db.tasks[index].archivedAt = new Date().toISOString();
+  db.tasks[index].updatedAt = new Date().toISOString();
   saveDb(db);
-  res.json(removed);
+  res.json(db.tasks[index]);
 });
 
-// --- Dashboard metrics (extendido) ---
+// Metrics extended
 app.get('/api/metrics', (req, res) => {
   const db = loadDb();
   const now = new Date();
   const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const newContacts = db.contacts.filter(c => {
+  const activeContacts = db.contacts.filter(c => !c.archived);
+  const activeOpps = db.opportunities.filter(o => !o.archived);
+  const activeTasks = db.tasks.filter(t => !t.archived);
+
+  const newContacts = activeContacts.filter(c => {
     const createdAt = c.createdAt ? new Date(c.createdAt) : null;
-    return createdAt ? createdAt >= last30Days : true;
+    return createdAt ? createdAt >= last30Days : false;
   }).length;
 
-  const totalPipelineValue = db.opportunities
+  const totalPipelineValue = activeOpps
     .filter(o => o.stage !== 'Cerrado/Perdido')
-    .reduce((sum, o) => sum + (Number(o.value) || 0), 0);
+    .reduce((sum, o) => sum + (toNumber(o.value, 0)), 0);
 
   const byStage = DEFAULT_STAGES.reduce((acc, stage) => {
-    acc[stage] = db.opportunities.filter(o => o.stage === stage).length;
+    acc[stage] = activeOpps.filter(o => o.stage === stage).length;
     return acc;
   }, {});
 
-  // Series de contactos por semana (8 semanas)
+  // Contacts per week (last 8 weeks)
   const weeks = [];
   const weekMs = 7 * 24 * 60 * 60 * 1000;
   for (let i = 7; i >= 0; i--) {
@@ -195,13 +246,13 @@ app.get('/api/metrics', (req, res) => {
     const end = new Date(start.getTime() + weekMs);
     weeks.push({ label: `${start.getMonth() + 1}/${start.getDate()}`, start, end });
   }
-  const contactsSeries = weeks.map(w => db.contacts.filter(c => {
+  const contactsSeries = weeks.map(w => activeContacts.filter(c => {
     if (!c.createdAt) return false;
     const d = new Date(c.createdAt);
     return d >= w.start && d < w.end;
   }).length);
 
-  const tasksStatus = db.tasks.reduce((acc, t) => {
+  const tasksStatus = activeTasks.reduce((acc, t) => {
     acc[t.status || 'pending'] = (acc[t.status || 'pending'] || 0) + 1;
     return acc;
   }, {});
@@ -215,7 +266,7 @@ app.get('/api/metrics', (req, res) => {
   });
 });
 
-// --- IA OpenAI ---
+// AI
 const openaiApiKey = process.env.OPENAI_API_KEY || 'YOUR_OPENAI_API_KEY_HERE';
 const openai = new OpenAI({ apiKey: openaiApiKey });
 
@@ -243,7 +294,7 @@ app.post('/api/ai/summarize', async (req, res) => {
 app.post('/api/ai/predict', async (req, res) => {
   try {
     const description = String(req.body.description || '').slice(0, 4000);
-    const value = Number(req.body.value || 0);
+    const value = toNumber(req.body.value, 0);
     const systemPrompt = 'Eres un analista de ventas. Estima la probabilidad de cierre (0-100%) basándote en la descripción y señales.\nDevuelve solo un número entero entre 0 y 100.';
     const userPrompt = `Descripcion: ${description}\nValor: ${value}\nPregunta: Analiza esta oportunidad y devuelve SOLO el porcentaje estimado (0-100).`;
     const completion = await openai.chat.completions.create({
@@ -264,7 +315,6 @@ app.post('/api/ai/predict', async (req, res) => {
   }
 });
 
-// IA: asesoría para trabajar al cliente
 app.post('/api/ai/advise', async (req, res) => {
   try {
     const { contact, opportunityDescription } = req.body || {};
