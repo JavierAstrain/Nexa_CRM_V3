@@ -5,26 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NEXA CRM</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      :root { --nexa-primary:#1d4ed8; --nexa-accent:#0ea5e9; --nexa-bg:#0b1220; --nexa-card:#0f172a; --nexa-text:#e5e7eb; --nexa-muted:#94a3b8; }
-      body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background: linear-gradient(180deg,#0b1220 0%,#111827 100%); color: var(--nexa-text); }
-      .card { background: rgba(15,23,42,.9); border: 1px solid rgba(148,163,184,.15); border-radius: 12px; }
+      :root { --nexa-primary: #1d4ed8; --nexa-accent: #0ea5e9; --nexa-bg: #0b1220; --nexa-card: #0f172a; --nexa-text: #e5e7eb; --nexa-muted: #94a3b8; }
+      html, body { height: 100%; }
+      body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background: linear-gradient(180deg, #0b1220 0%, #111827 100%); color: var(--nexa-text); }
+      .card { background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; }
       .btn { background: linear-gradient(90deg, var(--nexa-primary), var(--nexa-accent)); color: white; }
-      .input { background:#0b1220; border:1px solid rgba(148,163,184,.2); color: var(--nexa-text); border-radius:8px; }
-      .kanban-col { min-width:260px; }
-      .tag { background: rgba(14,165,233,.1); color:#7dd3fc; border:1px solid rgba(125,211,252,.3); }
-      .chip { background: rgba(30,64,175,.2); border:1px solid rgba(59,130,246,.3); color:#c7d2fe; }
+      .btn:hover { filter: brightness(1.05); }
+      .input { background: #0b1220; border: 1px solid rgba(148,163,184,0.2); color: var(--nexa-text); border-radius: 8px; }
+      .kanban-col { min-width: 260px; }
+      .tag { background: rgba(14, 165, 233, 0.1); color: #7dd3fc; border: 1px solid rgba(125, 211, 252, 0.3); }
+      .chip { background: rgba(30, 64, 175, 0.2); border: 1px solid rgba(59, 130, 246, 0.3); color: #c7d2fe; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   </head>
   <body class="min-h-screen">
-    <header class="border-b border-slate-800/60 sticky top-0 z-50">
+    <header class="border-b border-slate-800/60 backdrop-blur sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 grid place-items-center font-bold">N</div>
+          <img src="/Isotipo_Nexa.png" alt="NEXA" class="w-9 h-9 rounded-lg object-contain bg-slate-800/40 border border-slate-700" />
           <div>
             <h1 class="text-xl font-semibold tracking-tight">NEXA <span class="text-slate-400 font-normal">CRM</span></h1>
-            <p class="text-xs text-slate-400 -mt-1">Gestión de clientes con IA</p>
+            <p class="text-xs text-slate-400 -mt-1">Gestión de clientes potenciada con IA</p>
           </div>
         </div>
         <nav class="flex gap-2">
@@ -32,17 +37,41 @@
           <button data-tab="contacts" class="px-3 py-2 text-sm rounded-md hover:bg-slate-800/60 border border-slate-700 text-slate-300">Contactos</button>
           <button data-tab="opportunities" class="px-3 py-2 text-sm rounded-md hover:bg-slate-800/60 border border-slate-700 text-slate-300">Oportunidades</button>
           <button data-tab="tasks" class="px-3 py-2 text-sm rounded-md hover:bg-slate-800/60 border border-slate-700 text-slate-300">Tareas</button>
+          <button data-tab="ai" class="px-3 py-2 text-sm rounded-md hover:bg-slate-800/60 border border-slate-700 text-slate-300">IA</button>
         </nav>
       </div>
     </header>
 
     <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-      <section id="tab-dashboard" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="card p-4"><div class="text-slate-400 text-sm">Nuevos contactos (30 días)</div><div id="metric-new-contacts" class="text-3xl font-semibold mt-2">0</div></div>
-        <div class="card p-4"><div class="text-slate-400 text-sm">Valor total del pipeline</div><div id="metric-pipeline-value" class="text-3xl font-semibold mt-2">$0</div></div>
-        <div class="card p-4"><div class="text-slate-400 text-sm">Oportunidades por etapa</div><div id="metric-by-stage" class="text-sm mt-2 text-slate-300"></div></div>
+      <!-- Dashboard -->
+      <section id="tab-dashboard" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="card p-4">
+            <div class="text-slate-400 text-sm">Nuevos contactos (30 días)</div>
+            <div id="metric-new-contacts" class="text-3xl font-semibold mt-2">0</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-slate-400 text-sm">Valor total del pipeline</div>
+            <div id="metric-pipeline-value" class="text-3xl font-semibold mt-2">$0</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-slate-400 text-sm">Oportunidades por etapa</div>
+            <div id="metric-by-stage" class="text-sm mt-2 text-slate-300"></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="card p-4">
+            <div class="text-slate-400 text-sm mb-2">Contactos por semana (8)</div>
+            <canvas id="chart-contacts"></canvas>
+          </div>
+          <div class="card p-4">
+            <div class="text-slate-400 text-sm mb-2">Tareas por estado</div>
+            <canvas id="chart-tasks"></canvas>
+          </div>
+        </div>
       </section>
 
+      <!-- Contactos -->
       <section id="tab-contacts" class="hidden">
         <div class="card p-4">
           <h2 class="text-lg font-semibold">Contactos</h2>
@@ -51,7 +80,11 @@
             <input class="input px-3 py-2" name="email" placeholder="Email" />
             <input class="input px-3 py-2" name="phone" placeholder="Teléfono" />
             <input class="input px-3 py-2" name="company" placeholder="Empresa" />
-            <select class="input px-3 py-2" name="status"><option>Prospect</option><option>Cliente</option><option>Inactivo</option></select>
+            <select class="input px-3 py-2" name="status">
+              <option>Prospect</option>
+              <option>Cliente</option>
+              <option>Inactivo</option>
+            </select>
             <button class="btn px-3 py-2 rounded-md" type="submit">Crear</button>
             <textarea class="input px-3 py-2 md:col-span-6" name="notes" placeholder="Notas / Historial de interacciones"></textarea>
           </form>
@@ -59,6 +92,7 @@
         <div class="grid md:grid-cols-2 gap-4" id="contacts-list"></div>
       </section>
 
+      <!-- Oportunidades -->
       <section id="tab-opportunities" class="hidden">
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-semibold">Pipeline de ventas</h2>
@@ -69,14 +103,22 @@
         </div>
       </section>
 
+      <!-- Tareas -->
       <section id="tab-tasks" class="hidden">
         <div class="card p-4">
           <h2 class="text-lg font-semibold">Tareas</h2>
           <form id="task-form" class="grid md:grid-cols-6 gap-3 mt-4">
             <input class="input px-3 py-2 md:col-span-2" name="title" placeholder="Título" />
             <input class="input px-3 py-2" name="dueDate" type="date" />
-            <select class="input px-3 py-2" name="status"><option value="pending">Pendiente</option><option value="done">Hecha</option></select>
-            <select class="input px-3 py-2" name="linkedType"><option value="">Sin vínculo</option><option value="contact">Contacto</option><option value="opportunity">Oportunidad</option></select>
+            <select class="input px-3 py-2" name="status">
+              <option value="pending">Pendiente</option>
+              <option value="done">Hecha</option>
+            </select>
+            <select class="input px-3 py-2" name="linkedType">
+              <option value="">Sin vínculo</option>
+              <option value="contact">Contacto</option>
+              <option value="opportunity">Oportunidad</option>
+            </select>
             <input class="input px-3 py-2" name="linkedId" placeholder="ID vínculo (opcional)" />
             <button class="btn px-3 py-2 rounded-md" type="submit">Crear</button>
             <textarea class="input px-3 py-2 md:col-span-6" name="notes" placeholder="Notas"></textarea>
@@ -84,12 +126,33 @@
         </div>
         <div id="tasks-list" class="grid md:grid-cols-2 gap-4 mt-4"></div>
       </section>
+
+      <!-- IA -->
+      <section id="tab-ai" class="hidden">
+        <div class="card p-4">
+          <h2 class="text-lg font-semibold">Análisis de cliente (IA)</h2>
+          <div class="text-sm text-slate-400">Selecciona un contacto y agrega contexto para recibir recomendaciones accionables.</div>
+          <div class="grid md:grid-cols-3 gap-3 mt-4">
+            <select id="ai-contact" class="input px-3 py-2"></select>
+            <input id="ai-context" class="input px-3 py-2 md:col-span-2" placeholder="Contexto adicional (opcional)" />
+          </div>
+          <button id="ai-advise" class="btn px-3 py-2 rounded-md text-sm mt-3">Analizar y sugerir siguientes pasos</button>
+          <div id="ai-output" class="mt-4 text-slate-200 whitespace-pre-wrap text-sm"></div>
+        </div>
+      </section>
     </main>
 
     <template id="contact-card">
       <div class="card p-4 flex flex-col gap-2">
-        <div class="flex items-center justify-between"><div class="font-semibold name"></div><div class="text-xs chip px-2 py-1 rounded status"></div></div>
-        <div class="text-sm text-slate-300"><div class="email"></div><div class="phone"></div><div class="company"></div></div>
+        <div class="flex items-center justify-between">
+          <div class="font-semibold name"></div>
+          <div class="text-xs chip px-2 py-1 rounded status"></div>
+        </div>
+        <div class="text-sm text-slate-300">
+          <div class="email"></div>
+          <div class="phone"></div>
+          <div class="company"></div>
+        </div>
         <div class="text-xs text-slate-400">Notas</div>
         <textarea class="input px-3 py-2 text-sm notes"></textarea>
         <div class="flex gap-2 mt-2">
@@ -102,18 +165,29 @@
     </template>
 
     <template id="kanban-column">
-      <div class="kanban-col card p-3"><div class="font-semibold mb-2 title"></div><div class="space-y-3 items"></div></div>
+      <div class="kanban-col card p-3">
+        <div class="font-semibold mb-2 title"></div>
+        <div class="space-y-3 items"></div>
+      </div>
     </template>
 
     <template id="opportunity-card">
       <div class="card p-3 space-y-2">
-        <div class="flex items-center justify-between"><div class="font-semibold title"></div><button class="text-xs bg-red-600/80 hover:bg-red-600 text-white rounded px-2 py-1 delete">Eliminar</button></div>
+        <div class="flex items-center justify-between">
+          <div class="font-semibold title"></div>
+          <button class="text-xs bg-red-600/80 hover:bg-red-600 text-white rounded px-2 py-1 delete">Eliminar</button>
+        </div>
         <div class="text-sm text-slate-300">
           <div class="value"></div>
           <div class="flex items-center gap-2 mt-1">
             <label class="text-xs text-slate-400">Etapa</label>
             <select class="input px-2 py-1 text-sm stage">
-              <option>Prospecto</option><option>Calificado</option><option>Propuesta</option><option>Negociacion</option><option>Cerrado/Ganado</option><option>Cerrado/Perdido</option>
+              <option>Prospecto</option>
+              <option>Calificado</option>
+              <option>Propuesta</option>
+              <option>Negociacion</option>
+              <option>Cerrado/Ganado</option>
+              <option>Cerrado/Perdido</option>
             </select>
           </div>
           <textarea class="input px-2 py-1 text-sm description"></textarea>
@@ -128,13 +202,20 @@
 
     <template id="task-card">
       <div class="card p-3 space-y-2">
-        <div class="flex items-center justify-between"><div class="font-semibold title"></div><button class="text-xs bg-red-600/80 hover:bg-red-600 text-white rounded px-2 py-1 delete">Eliminar</button></div>
+        <div class="flex items-center justify-between">
+          <div class="font-semibold title"></div>
+          <button class="text-xs bg-red-600/80 hover:bg-red-600 text-white rounded px-2 py-1 delete">Eliminar</button>
+        </div>
         <div class="text-sm text-slate-300">
-          <div class="due"></div><div class="link"></div>
+          <div class="due"></div>
+          <div class="link"></div>
           <textarea class="input px-2 py-1 text-sm notes"></textarea>
         </div>
         <div class="flex gap-2">
-          <select class="input px-2 py-1 text-sm status"><option value="pending">Pendiente</option><option value="done">Hecha</option></select>
+          <select class="input px-2 py-1 text-sm status">
+            <option value="pending">Pendiente</option>
+            <option value="done">Hecha</option>
+          </select>
           <button class="px-3 py-1.5 rounded text-xs bg-slate-700 hover:bg-slate-600 text-white save">Guardar</button>
         </div>
         <div class="text-xs text-slate-400">ID: <span class="id"></span></div>
