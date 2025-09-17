@@ -19,6 +19,9 @@
       .kanban-col { min-width: 260px; }
       .tag { background: rgba(14, 165, 233, 0.1); color: #7dd3fc; border: 1px solid rgba(125, 211, 252, 0.3); }
       .chip { background: rgba(30, 64, 175, 0.2); border: 1px solid rgba(59, 130, 246, 0.3); color: #c7d2fe; }
+      .toast { position: fixed; right: 16px; bottom: 16px; background: #0f172a; color: #e5e7eb; border: 1px solid rgba(148,163,184,0.2); padding: 10px 12px; border-radius: 8px; z-index: 9999; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+      .due-soon { color: #f59e0b; }
+      .due-past { color: #ef4444; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   </head>
@@ -74,19 +77,34 @@
       <!-- Contactos -->
       <section id="tab-contacts" class="hidden">
         <div class="card p-4">
-          <h2 class="text-lg font-semibold">Contactos</h2>
-          <form id="contact-form" class="grid md:grid-cols-6 gap-3 mt-4">
-            <input class="input px-3 py-2 md:col-span-2" name="name" placeholder="Nombre" />
-            <input class="input px-3 py-2" name="email" placeholder="Email" />
-            <input class="input px-3 py-2" name="phone" placeholder="Teléfono" />
-            <input class="input px-3 py-2" name="company" placeholder="Empresa" />
-            <select class="input px-3 py-2" name="status">
-              <option>Prospect</option>
-              <option>Cliente</option>
-              <option>Inactivo</option>
-            </select>
-            <button class="btn px-3 py-2 rounded-md" type="submit">Crear</button>
-            <textarea class="input px-3 py-2 md:col-span-6" name="notes" placeholder="Notas / Historial de interacciones"></textarea>
+          <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+            <div class="flex-1 grid md:grid-cols-6 gap-3">
+              <input class="input px-3 py-2 md:col-span-2" name="name" placeholder="Nombre" required />
+              <input class="input px-3 py-2" name="email" placeholder="Email" type="email" />
+              <input class="input px-3 py-2" name="phone" placeholder="Teléfono" />
+              <input class="input px-3 py-2" name="company" placeholder="Empresa" />
+              <select class="input px-3 py-2" name="status">
+                <option>Prospect</option>
+                <option>Cliente</option>
+                <option>Inactivo</option>
+              </select>
+              <button class="btn px-3 py-2 rounded-md" type="submit" form="contact-form">Crear</button>
+            </div>
+            <div class="flex gap-2">
+              <input id="contacts-search" class="input px-3 py-2" placeholder="Buscar por nombre/empresa" />
+              <select id="contacts-sort" class="input px-3 py-2">
+                <option value="createdAt:desc">Recientes</option>
+                <option value="name:asc">Nombre A-Z</option>
+                <option value="name:desc">Nombre Z-A</option>
+              </select>
+              <label class="flex items-center gap-2 text-sm text-slate-300">
+                <input id="contacts-archived" type="checkbox" /> Mostrar archivados
+              </label>
+              <button id="contacts-export" class="px-3 py-2 rounded-md text-sm bg-slate-700 hover:bg-slate-600 text-white">Exportar CSV</button>
+            </div>
+          </div>
+          <form id="contact-form" class="grid gap-3 mt-4">
+            <textarea class="input px-3 py-2" name="notes" placeholder="Notas / Historial de interacciones"></textarea>
           </form>
         </div>
         <div class="grid md:grid-cols-2 gap-4" id="contacts-list"></div>
@@ -95,8 +113,16 @@
       <!-- Oportunidades -->
       <section id="tab-opportunities" class="hidden">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold">Pipeline de ventas</h2>
-          <button id="btn-new-opp" class="btn px-3 py-2 rounded-md text-sm">Nueva oportunidad</button>
+          <div class="flex items-center gap-2">
+            <h2 class="text-lg font-semibold">Pipeline de ventas</h2>
+            <label class="flex items-center gap-2 text-sm text-slate-300 ml-3">
+              <input id="opps-archived" type="checkbox" /> Mostrar archivadas
+            </label>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="opps-export" class="px-3 py-2 rounded-md text-sm bg-slate-700 hover:bg-slate-600 text-white">Exportar CSV</button>
+            <button id="btn-new-opp" class="btn px-3 py-2 rounded-md text-sm">Nueva oportunidad</button>
+          </div>
         </div>
         <div class="mt-4 overflow-x-auto">
           <div id="kanban" class="flex gap-4"></div>
@@ -106,9 +132,17 @@
       <!-- Tareas -->
       <section id="tab-tasks" class="hidden">
         <div class="card p-4">
-          <h2 class="text-lg font-semibold">Tareas</h2>
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold">Tareas</h2>
+            <div class="flex items-center gap-2">
+              <label class="flex items-center gap-2 text-sm text-slate-300">
+                <input id="tasks-archived" type="checkbox" /> Mostrar archivadas
+              </label>
+              <button id="tasks-export" class="px-3 py-2 rounded-md text-sm bg-slate-700 hover:bg-slate-600 text-white">Exportar CSV</button>
+            </div>
+          </div>
           <form id="task-form" class="grid md:grid-cols-6 gap-3 mt-4">
-            <input class="input px-3 py-2 md:col-span-2" name="title" placeholder="Título" />
+            <input class="input px-3 py-2 md:col-span-2" name="title" placeholder="Título" required />
             <input class="input px-3 py-2" name="dueDate" type="date" />
             <select class="input px-3 py-2" name="status">
               <option value="pending">Pendiente</option>
@@ -157,7 +191,7 @@
         <textarea class="input px-3 py-2 text-sm notes"></textarea>
         <div class="flex gap-2 mt-2">
           <button class="btn px-3 py-2 rounded-md text-sm summarize">Generar resumen</button>
-          <button class="px-3 py-2 rounded-md text-sm bg-red-600/80 hover:bg-red-600 text-white delete">Eliminar</button>
+          <button class="px-3 py-2 rounded-md text-sm bg-red-600/80 hover:bg-red-600 text-white delete">Archivar</button>
           <button class="px-3 py-2 rounded-md text-sm bg-slate-700 hover:bg-slate-600 text-white save">Guardar</button>
         </div>
         <div class="summary text-slate-300 text-sm mt-1"></div>
@@ -175,7 +209,7 @@
       <div class="card p-3 space-y-2">
         <div class="flex items-center justify-between">
           <div class="font-semibold title"></div>
-          <button class="text-xs bg-red-600/80 hover:bg-red-600 text-white rounded px-2 py-1 delete">Eliminar</button>
+          <button class="text-xs bg-red-600/80 hover:bg-red-600 text-white rounded px-2 py-1 delete">Archivar</button>
         </div>
         <div class="text-sm text-slate-300">
           <div class="value"></div>
@@ -204,7 +238,7 @@
       <div class="card p-3 space-y-2">
         <div class="flex items-center justify-between">
           <div class="font-semibold title"></div>
-          <button class="text-xs bg-red-600/80 hover:bg-red-600 text-white rounded px-2 py-1 delete">Eliminar</button>
+          <button class="text-xs bg-red-600/80 hover:bg-red-600 text-white rounded px-2 py-1 delete">Archivar</button>
         </div>
         <div class="text-sm text-slate-300">
           <div class="due"></div>
